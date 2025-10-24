@@ -1,0 +1,4 @@
+fileignoreconfig:
+  - filename: .github/workflows/zap-dast.yml
+    checksum: b41459c0dd7dc8a992b1630d7b4daf0b87f6a51f88c61bce8a086e3ca420211b
+version: "1.0"

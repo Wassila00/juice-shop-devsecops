@@ -1,0 +1,37 @@
+name: "DAST - OWASP ZAP Scan"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  zap_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Start Juice Shop in Docker
+      run: |
+        docker run -d --name juice-shop -p 3000:3000 bkimminich/juice-shop
+        sleep 15  # wait for container to be ready
+
+    - name: Verify Juice Shop is running
+      run: curl -I http://localhost:3000 || (echo "Juice Shop not running!" && exit 1)
+
+    - name: Run OWASP ZAP Baseline Scan
+      run: |
+        docker run --network="host" -v $(pwd):/zap/wrk/:rw \
+          owasp/zap2docker-stable zap-baseline.py \
+          -t http://localhost:3000 \
+          -r zap-report.html
+
+    - name: Upload ZAP Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: zap-dast-report
+        path: zap-report.html
