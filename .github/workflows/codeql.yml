@@ -5,9 +5,9 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:
+  workflow_dispatch:        # Allow manual execution
   schedule:
-    - cron: '22 16 * * 4'
+    - cron: '22 16 * * 4'   # Weekly schedule (optional)
 
 jobs:
   analyze:
@@ -28,41 +28,46 @@ jobs:
           build-mode: none
 
     steps:
+    # ✅ 1. Checkout the repository code
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    # ✅ 2. Initialize CodeQL
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
-    # ⚠️ Only needed if build is required (not in Juice Shop / JS project)
+    # ⚠️ 3. Only needed if your project requires building (not for JS/TS)
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
       run: |
         echo "Manual build step. Not needed for JavaScript/TypeScript."
 
-    # ✅ Run CodeQL analysis and export SARIF file locally (disable auto-upload to GitHub Security)
+    # ✅ 4. Run CodeQL analysis (save SARIF locally, don't upload yet)
     - name: Perform CodeQL Analysis (SARIF output only)
       id: codeql
       uses: github/codeql-action/analyze@v4
       with:
-        upload: false   # Prevent auto-upload to GitHub Security (required to export report manually)
-        output: codeql-results.sarif
+        upload: false                # Prevent auto-upload to Security tab
+        output: codeql-results.sarif # Save SARIF file locally
 
-    # ✅ Convert SARIF to an HTML report
+    # ✅ 5. Convert SARIF → HTML Report
     - name: Convert SARIF to HTML report
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
           const path = 'codeql-results.sarif';
+
           if (!fs.existsSync(path)) {
             throw new Error('❌ SARIF file not found at ' + path);
           }
+
           const sarif = JSON.parse(fs.readFileSync(path, 'utf8'));
           const results = sarif.runs?.[0]?.results || [];
+
           const rows = results.map(r => {
             const rule = r.ruleId || 'N/A';
             const msg = r.message?.text || '';
@@ -71,7 +76,8 @@ jobs:
             const severity = r.properties?.['security-severity'] || 'N/A';
             return `<tr><td>${rule}</td><td>${msg}</td><td>${file}</td><td>${line}</td><td>${severity}</td></tr>`;
           }).join('');
-          const htmlContent = `
+
+          const html = `
           <html>
             <head>
               <meta charset="utf-8"/>
@@ -91,11 +97,12 @@ jobs:
               </table>
             </body>
           </html>`;
-          fs.writeFileSync('codeql-report.html', htmlContent);
+
+          fs.writeFileSync('codeql-report.html', html);
       env:
         MATRIX_LANGUAGE: ${{ matrix.language }}
 
-    # ✅ Upload the SARIF + HTML report as artifacts (downloadable file in Actions)
+    # ✅ 6. Upload SARIF + HTML report as artifacts (available in GitHub Actions → Artifacts)
     - name: Upload CodeQL Reports
       uses: actions/upload-artifact@v4
       with:
