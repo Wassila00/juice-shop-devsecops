@@ -18,7 +18,7 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'      # Juice Shop OK avec 18/20. Garde 18 pour npm install stable.
+        node-version: '20'      # Juice Shop OK avec 18/20. Garde 18 pour npm install stable.
 
     - name: Install dependencies
       run: npm install
