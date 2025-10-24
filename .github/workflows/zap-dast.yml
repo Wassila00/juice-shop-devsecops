@@ -32,11 +32,11 @@ jobs:
           -v $(pwd):/zap/wrk/:rw \
           zaproxy/zap-stable zap-baseline.py \
           -t http://localhost:3000 \
-          -r zap-report.html || true  # Prevent failing even if vulnerabilities are found
+          -r zap-report.xml || true  # Prevent failing even if vulnerabilities are found
 
     # 4️⃣ Upload ZAP report as an artifact
-    - name: Upload ZAP HTML report
+    - name: Upload ZAP XML report
       uses: actions/upload-artifact@v4
       with:
         name: zap-dast-report
-        path: zap-report.html
+        path: zap-report.xml
