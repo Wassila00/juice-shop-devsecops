@@ -1,9 +1,3 @@
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
-#
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
-#
 name: "CodeQL Advanced"
 
 on:
@@ -11,18 +5,20 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
   schedule:
     - cron: '22 16 * * 4'
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
+
     permissions:
       security-events: write
-      packages: read
-      actions: read
       contents: read
+      actions: read
+      packages: read
 
     strategy:
       fail-fast: false
@@ -41,62 +37,69 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
 
+    # ⚠️ Only needed if build is required (not in Juice Shop / JS project)
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
-      shell: bash
       run: |
-        echo 'Add build commands here if needed'
-        exit 1
+        echo "Manual build step. Not needed for JavaScript/TypeScript."
 
-    # ✅ Perform CodeQL Analysis (SARIF output only, do NOT auto-upload)
+    # ✅ Run CodeQL analysis and export SARIF file locally (disable auto-upload to GitHub Security)
     - name: Perform CodeQL Analysis (SARIF output only)
       id: codeql
       uses: github/codeql-action/analyze@v4
       with:
-        category: "/language:${{ matrix.language }}"
-        upload: false
-        output: codeql-results-${{ matrix.language }}.sarif
+        upload: false   # Prevent auto-upload to GitHub Security (required to export report manually)
+        output: codeql-results.sarif
 
-    # ✅ Convert SARIF to HTML Report
+    # ✅ Convert SARIF to an HTML report
     - name: Convert SARIF to HTML report
       uses: actions/github-script@v7
-      env:
-        MATRIX_LANGUAGE: ${{ matrix.language }}
       with:
         script: |
           const fs = require('fs');
-          const sarifFile = `codeql-results-${process.env.MATRIX_LANGUAGE}.sarif`;
-          const sarif = JSON.parse(fs.readFileSync(sarifFile, 'utf8'));
-          const results = sarif.runs[0].results || [];
+          const path = 'codeql-results.sarif';
+          if (!fs.existsSync(path)) {
+            throw new Error('❌ SARIF file not found at ' + path);
+          }
+          const sarif = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const results = sarif.runs?.[0]?.results || [];
           const rows = results.map(r => {
             const rule = r.ruleId || 'N/A';
             const msg = r.message?.text || '';
             const file = r.locations?.[0]?.physicalLocation?.artifactLocation?.uri || 'N/A';
             const line = r.locations?.[0]?.physicalLocation?.region?.startLine || '';
-            const sev = r.properties?.['security-severity'] || 'N/A';
-            return `<tr><td>${rule}</td><td>${msg}</td><td>${file}</td><td>${line}</td><td>${sev}</td></tr>`;
+            const severity = r.properties?.['security-severity'] || 'N/A';
+            return `<tr><td>${rule}</td><td>${msg}</td><td>${file}</td><td>${line}</td><td>${severity}</td></tr>`;
           }).join('');
-          const html = `
-            <html>
-            <head><meta charset="utf-8"><title>CodeQL Report</title></head>
+          const htmlContent = `
+          <html>
+            <head>
+              <meta charset="utf-8"/>
+              <title>CodeQL Report - ${process.env.MATRIX_LANGUAGE}</title>
+              <style>
+                body { font-family: Arial, sans-serif; padding:20px; }
+                table { border-collapse: collapse; width:100%; }
+                th, td { border:1px solid #888; padding:8px; }
+                th { background:#222; color:white; }
+              </style>
+            </head>
             <body>
-            <h1>CodeQL Security Report - ${process.env.MATRIX_LANGUAGE}</h1>
-            <table border="1">
-              <tr>
-                <th>Rule</th><th>Description</th><th>File</th><th>Line</th><th>Severity</th>
-              </tr>
-              ${rows}
-            </table>
+              <h1>CodeQL Security Report (${process.env.MATRIX_LANGUAGE})</h1>
+              <table>
+                <tr><th>Rule</th><th>Description</th><th>File</th><th>Line</th><th>Severity</th></tr>
+                ${rows}
+              </table>
             </body>
-            </html>
-          `;
-          fs.writeFileSync(`codeql-report-${process.env.MATRIX_LANGUAGE}.html`, html);
+          </html>`;
+          fs.writeFileSync('codeql-report.html', htmlContent);
+      env:
+        MATRIX_LANGUAGE: ${{ matrix.language }}
 
-    # ✅ Upload HTML + SARIF report as workflow artifact
+    # ✅ Upload the SARIF + HTML report as artifacts (downloadable file in Actions)
     - name: Upload CodeQL Reports
       uses: actions/upload-artifact@v4
       with:
         name: codeql-${{ matrix.language }}-report
         path: |
-          codeql-results-${{ matrix.language }}.sarif
-          codeql-report-${{ matrix.language }}.html
+          codeql-results.sarif
+          codeql-report.html
