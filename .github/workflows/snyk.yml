@@ -1,0 +1,41 @@
+name: "SCA with Snyk"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  snyk-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'      # Juice Shop OK avec 18/20. Garde 18 pour npm install stable.
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install Snyk CLI
+      run: npm install -g snyk
+
+    - name: Authenticate Snyk
+      run: snyk auth ${{ secrets.SNYK_TOKEN }}
+
+    # SCA (analyse des dépendances) et export JSON
+    - name: Run Snyk test and save JSON report
+      run: snyk test --json > snyk-report.json
+
+    # Sauvegarder le rapport JSON en artifact
+    - name: Upload Snyk JSON report
+      uses: actions/upload-artifact@v4
+      with:
+        name: snyk-security-report
+        path: snyk-report.json
